@@ -156,37 +156,50 @@ class Feed extends Component {
     });
 
     const formData = new FormData();
-    formData.append("title", postData.title);
-    formData.append("content", postData.content);
     formData.append("image", postData.image);
 
-    const graphqlQuery = {
-      query: `
-        mutation {
-          createPost(postInput: { title: "${postData.title}", content: "${postData.content}", imageUrl: "some url" }) {
-            _id
-            creator {
-              name
-            }
-            createdAt
-            title
-            content
-          }
-        }`,
-    };
+    if (this.state.editPost) {
+      formData.append("oldPath", this.state.editPost.imagePath);
+    }
 
-    fetch("http://localhost:8080/graphql", {
-      method: "POST",
-      body: JSON.stringify(graphqlQuery),
+    fetch("http://localhost:8080/post-image", {
+      method: "PUT",
       headers: {
         Authorization: "Bearer " + this.props.token,
-        "Content-Type": "application/json",
       },
+      body: formData,
     })
       .then((res) => {
-        if (res.status !== 200 && res.status !== 201) {
-          throw new Error("Creating or editing a post failed!");
-        }
+        return res.json();
+      })
+      .then((fileResData) => {
+        const imageUrl = fileResData.filePath;
+
+        const graphqlQuery = {
+          query: `
+          mutation {
+            createPost(postInput: { title: "${postData.title}", content: "${postData.content}", imageUrl: "${imageUrl}" }) {
+              _id
+              creator {
+                name
+              }
+              createdAt
+              title
+              content
+            }
+          }`,
+        };
+
+        return fetch("http://localhost:8080/graphql", {
+          method: "POST",
+          body: JSON.stringify(graphqlQuery),
+          headers: {
+            Authorization: "Bearer " + this.props.token,
+            "Content-Type": "application/json",
+          },
+        });
+      })
+      .then((res) => {
         return res.json();
       })
       .then((resData) => {
@@ -204,6 +217,7 @@ class Feed extends Component {
           _id: resData.data.createPost._id,
           title: resData.data.createPost.title,
           content: resData.data.createPost.content,
+          imagePath: resData.data.createPost.imageUrl,
           creator: resData.data.createPost.creator,
           createdAt: resData.data.createPost.createdAt,
         };
